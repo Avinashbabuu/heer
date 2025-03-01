@@ -33,7 +33,7 @@ def process_clone(message):
     if os.path.exists("cloned_bot"):
         os.system("rm -rf cloned_bot")  # Pehle se cloned bot hai to delete karega
 
-    os.system(f"git clone https://github.com/YOUR_REPO.git cloned_bot && cd cloned_bot && echo '{token}' > token.txt")
+    os.system(f"git clone https://github.com/Avinashbabuu/sara cloned_bot && cd cloned_bot && echo '{token}' > token.txt")
 
     bot.send_message(message.chat.id, f"✅ *Bot Cloned Successfully!*\n\n🤖 *Bot Name:* Cloned Bot\n📌 *Username:* @{message.from_user.username}\n\n🔥 *Your bot is now ready!*", parse_mode="Markdown")
 
