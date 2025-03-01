@@ -1,157 +1,138 @@
-import telebot
-import requests
-import os
+from pyrogram import Client, filters
 import json
+import os
 
-TOKEN = "8024398292:AAF8X8PF4Z-2hDSBkiQMOzSWD2FA8kQLZ1g"
-bot = telebot.TeleBot(TOKEN)
+# Cloned bots data file
+CLONE_FILE = "cloned_bots.json"
 
-admin_id = 6484788124  # Replace with your Telegram ID
-cloned_bots_file = "cloned_bots.json"
+# Function to check if bot token is valid
+def check_bot_token(token):
+    import requests
+    url = f"https://api.telegram.org/bot{token}/getMe"
+    response = requests.get(url).json()
+    return "ok" in response and response["ok"]
 
-# Load cloned bots data
+# Load cloned bots
 def load_cloned_bots():
-    if not os.path.exists(cloned_bots_file):
-        return {}
-    with open(cloned_bots_file, "r") as f:
-        return json.load(f)
+    if not os.path.exists(CLONE_FILE):
+        return {"bots": []}
+    with open(CLONE_FILE, "r") as file:
+        return json.load(file)
 
-# Save cloned bots data
+# Save cloned bots
 def save_cloned_bots(data):
-    with open(cloned_bots_file, "w") as f:
-        json.dump(data, f, indent=4)
+    with open(CLONE_FILE, "w") as file:
+        json.dump(data, file, indent=4)
 
-cloned_bots = load_cloned_bots()
+# /clone command
+@Client.on_message(filters.command("clone"))
+async def clone_bot(client, message):
+    await message.reply("Send your bot token to clone your music bot.")
 
-# Clone bot function
-@bot.message_handler(commands=['clone'])
-def clone_bot(message):
-    bot.send_message(message.chat.id, "Send me your bot token from BotFather:")
-    bot.register_next_step_handler(message, process_bot_clone)
-
-def process_bot_clone(message):
-    user_id = message.chat.id
-    new_token = message.text.strip()
+@Client.on_message(filters.private & filters.text)
+async def handle_token(client, message):
+    token = message.text.strip()
     
-    # Verify bot token
-    response = requests.get(f"https://api.telegram.org/bot{new_token}/getMe").json()
-    
-    if not response.get("ok"):
-        bot.send_message(user_id, "❌ Invalid bot token! Please try again.")
+    # Validate bot token
+    if not check_bot_token(token):
+        await message.reply("Invalid bot token! Please try again.")
         return
     
-    new_bot_username = response["result"]["username"]
-    
-    # Save bot details
-    cloned_bots[new_bot_username] = {
-        "user_id": user_id,
-        "bot_token": new_token,
-        "groups": []
-    }
-    save_cloned_bots(cloned_bots)
-    
-    bot.send_message(user_id, f"✅ Successfully cloned `{new_bot_username}`!\n\nNow, deploy it using the same GitHub repository.", parse_mode="Markdown")
+    user_id = message.from_user.id
+    cloned_bots = load_cloned_bots()
 
-# Show user's cloned bots
-@bot.message_handler(commands=['myclones'])
-def my_cloned_bots(message):
-    user_id = message.chat.id
-    user_bots = [bot for bot, data in cloned_bots.items() if data["user_id"] == user_id]
-
-    if not user_bots:
-        bot.send_message(user_id, "❌ You haven't cloned any bots yet.")
-        return
-
-    bot_list = "\n".join([f"@{b}" for b in user_bots])
-    bot.send_message(user_id, f"✅ Your cloned bots:\n{bot_list}")
-
-# Remove own cloned bot
-@bot.message_handler(commands=['delclone'])
-def remove_clone_user(message):
-    user_id = message.chat.id
-    args = message.text.split(" ")
-    
-    if len(args) < 2:
-        bot.send_message(user_id, "❌ Usage: `/delclone <bot_token>`", parse_mode="Markdown")
-        return
-    
-    bot_token = args[1].strip()
-    
-    for bot_username, data in cloned_bots.items():
-        if data["user_id"] == user_id and data["bot_token"] == bot_token:
-            del cloned_bots[bot_username]
-            save_cloned_bots(cloned_bots)
-            bot.send_message(user_id, f"✅ `{bot_username}` has been removed!", parse_mode="Markdown")
+    # Check if already cloned
+    for bot in cloned_bots["bots"]:
+        if bot["token"] == token:
+            await message.reply("This bot is already cloned.")
             return
+
+    # Save cloned bot details
+    bot_info = {"user_id": user_id, "token": token}
+    cloned_bots["bots"].append(bot_info)
+    save_cloned_bots(cloned_bots)
+
+    await message.reply("✅ Your bot is being deployed! Please wait...")
+
+    # Deploy bot using Termux (You can modify for VPS/Heroku)
+    os.system(f"git clone https://github.com/Avinashbabuu/sara cloned_bot && cd cloned_bot && echo {token} > token.txt && bash start.sh")
+
+    await message.reply("🎉 Your bot is successfully cloned and running!")
     
-    bot.send_message(user_id, "❌ You don't own this bot or invalid token.", parse_mode="Markdown")
-
-# Admin manage cloned bots
-@bot.message_handler(commands=['manageclones'])
-def manage_cloned_bots(message):
-    if message.chat.id != admin_id:
-        bot.send_message(message.chat.id, "❌ You are not authorized.")
+@Client.on_message(filters.command("delclone"))
+async def del_clone(client, message):
+    token = message.text.split(" ", 1)[1].strip()
+    cloned_bots = load_cloned_bots()
+    
+    # Find & remove bot
+    updated_bots = [bot for bot in cloned_bots["bots"] if bot["token"] != token]
+    
+    if len(updated_bots) == len(cloned_bots["bots"]):
+        await message.reply("❌ This bot is not found in our records.")
         return
 
-    if not cloned_bots:
-        bot.send_message(admin_id, "❌ No cloned bots found.")
+    # Save updated data
+    cloned_bots["bots"] = updated_bots
+    save_cloned_bots(cloned_bots)
+
+    os.system(f"rm -rf cloned_bot")  # Remove cloned bot directory
+
+    await message.reply("✅ Your cloned bot has been removed successfully.")
+    
+@Client.on_message(filters.command("manageclones"))
+async def manage_clones(client, message):
+    cloned_bots = load_cloned_bots()
+    
+    if not cloned_bots["bots"]:
+        await message.reply("No cloned bots found.")
         return
 
-    bot_list = "\n".join([f"@{b} - User: {data['user_id']}" for b, data in cloned_bots.items()])
-    bot.send_message(admin_id, f"🔹 **Cloned Bots:**\n{bot_list}", parse_mode="Markdown")
+    bot_list = "\n".join([f"👤 User ID: {bot['user_id']} | Token: {bot['token']}" for bot in cloned_bots["bots"]])
+    await message.reply(f"🔹 Cloned Bots List:\n\n{bot_list}")
 
-# Remove a cloned bot (Admin Only)
-@bot.message_handler(commands=['removeclone'])
-def remove_clone_admin(message):
-    if message.chat.id != admin_id:
-        bot.send_message(message.chat.id, "❌ You are not authorized.")
+@Client.on_message(filters.command("removeclone"))
+async def remove_clone(client, message):
+    if len(message.command) < 2:
+        await message.reply("❌ Usage: /removeclone <bot_token>")
+        return
+    
+    token = message.command[1]
+    cloned_bots = load_cloned_bots()
+    
+    # Check if bot exists
+    updated_bots = [bot for bot in cloned_bots["bots"] if bot["token"] != token]
+    
+    if len(updated_bots) == len(cloned_bots["bots"]):
+        await message.reply("❌ This bot is not found in our records.")
         return
 
-    args = message.text.split(" ")
-    if len(args) < 2:
-        bot.send_message(admin_id, "❌ Usage: `/removeclone @BotUsername`", parse_mode="Markdown")
+    # Save updated data
+    cloned_bots["bots"] = updated_bots
+    save_cloned_bots(cloned_bots)
+
+    os.system(f"rm -rf cloned_bot")  # Remove cloned bot directory
+
+    await message.reply("✅ Cloned bot has been removed successfully.")
+
+@Client.on_message(filters.command("cast"))
+async def broadcast_message(client, message):
+    if len(message.command) < 2:
+        await message.reply("❌ Usage: /cast <message>")
         return
 
-    bot_username = args[1].replace("@", "")
-
-    if bot_username in cloned_bots:
-        del cloned_bots[bot_username]
-        save_cloned_bots(cloned_bots)
-        bot.send_message(admin_id, f"✅ `{bot_username}` has been removed!", parse_mode="Markdown")
-    else:
-        bot.send_message(admin_id, "❌ Bot not found in cloned list.", parse_mode="Markdown")
-
-# Broadcast to all cloned bots in groups
-@bot.message_handler(commands=['broadcast'])
-def broadcast_message(message):
-    if message.chat.id != admin_id:
-        bot.send_message(message.chat.id, "❌ You are not authorized.")
+    text = " ".join(message.command[1:])
+    cloned_bots = load_cloned_bots()
+    
+    if not cloned_bots["bots"]:
+        await message.reply("❌ No cloned bots found.")
         return
 
-    text = message.text.replace("/broadcast", "").strip()
-    if not text:
-        bot.send_message(admin_id, "❌ Usage: `/broadcast Your Message`", parse_mode="Markdown")
-        return
-
-    for bot_username, data in cloned_bots.items():
-        bot_token = data["bot_token"]
-        
-        # Get all groups the bot is in
+    success, failed = 0, 0
+    for bot in cloned_bots["bots"]:
         try:
-            updates = requests.get(f"https://api.telegram.org/bot{bot_token}/getUpdates").json()
-            group_ids = set()
-            for update in updates.get("result", []):
-                if "message" in update and "chat" in update["message"] and update["message"]["chat"]["type"] in ["group", "supergroup"]:
-                    group_ids.add(update["message"]["chat"]["id"])
-
-            # Send the broadcast message to all groups
-            for group_id in group_ids:
-                requests.get(f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                             params={"chat_id": group_id, "text": text})
-                
+            os.system(f"python3 cloned_bot.py --message '{text}' --token {bot['token']}")
+            success += 1
         except:
-            pass  # Ignore if bot is down
+            failed += 1
 
-    bot.send_message(admin_id, "✅ Broadcast sent to all cloned bots in groups!")
-
-bot.polling(none_stop=True)
+    await message.reply(f"✅ Broadcast completed!\nSuccess: {success}\nFailed: {failed}")
