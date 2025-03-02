@@ -3,75 +3,58 @@ import subprocess
 from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackContext
 
-# Cloned bots ka data store karne ke liye
-CLONE_DIR = "/root/cloned_bots"  # VPS pe folder
-os.makedirs(CLONE_DIR, exist_ok=True)
-
-# `/clone` command function
-async def clone_bot(update: Update, context: CallbackContext):
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /clone <bot_token>")
-        return
-
-    bot_token = context.args[0]
-
-    # Bot token verify karna
-    bot_info = subprocess.getoutput(f"curl -s https://api.telegram.org/bot{bot_token}/getMe")
-    if '"ok":true' not in bot_info:
-        await update.message.reply_text("❌ Invalid bot token! Please check again.")
-        return
-
-    # Bot username nikalna
-    bot_username = bot_info.split('"username":"')[1].split('"')[0]
-
-    # Clone ka directory
-    bot_path = os.path.join(CLONE_DIR, bot_username)
-
-    if os.path.exists(bot_path):
-        await update.message.reply_text("⚠️ This bot is already cloned.")
-        return
-
-    os.makedirs(bot_path)
-
-    # Repository clone karna
-    await update.message.reply_text(f"🚀 Cloning {bot_username} bot...")
-
-    subprocess.run(f"git clone https://github.com/Avinashbabuu/sara {bot_path}", shell=True)
-
-    # .env file set karna
-    env_content = f"BOT_TOKEN={bot_token}\nDATABASE_URL=sqlite:///{bot_path}/database.db"
-    with open(os.path.join(bot_path, ".env"), "w") as f:
-        f.write(env_content)
-
-    # Start karna cloned bot
-    subprocess.run(f"cd {bot_path} && nohup python3 bot.py &", shell=True)
-
-    await update.message.reply_text(f"✅ {bot_username} successfully cloned and running!")
-
-# `/remove_clone` command function
-async def remove_clone(update: Update, context: CallbackContext):
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /remove_clone <bot_username>")
-        return
-
-    bot_username = context.args[0]
-    bot_path = os.path.join(CLONE_DIR, bot_username)
-
-    if not os.path.exists(bot_path):
-        await update.message.reply_text("❌ No such cloned bot found.")
-        return
-
-    subprocess.run(f"rm -rf {bot_path}", shell=True)
-    await update.message.reply_text(f"🗑️ {bot_username} has been removed.")
-
-# Telegram bot setup
+# Aapke bot ka main token
 TOKEN = "8024398292:AAFHzwE4ICoAba0S7DsSaDk5nykSJHP3sQE"
+GITHUB_REPO = "https://github.com/Avinashbabuu/sara.git"
+
 app = Application.builder().token(TOKEN).build()
 
-# Handlers add karein
-app.add_handler(CommandHandler("clone", clone_bot))
-app.add_handler(CommandHandler("remove_clone", remove_clone))
+async def clone(update: Update, context: CallbackContext):
+    if len(context.args) == 0:
+        await update.message.reply_text("⚠️ *Usage:* `/clone YOUR_BOT_TOKEN`")
+        return
+    
+    new_bot_token = context.args[0]
+    user_id = update.effective_user.id  # Clone karne wale user ka Telegram ID
+    
+    bot_folder = f"/root/cloned_bots/{user_id}"
+    
+    if not os.path.exists(bot_folder):
+        os.makedirs(bot_folder)
 
-# Bot start karein
-print("🚀 Bot is running...")
+    await update.message.reply_text("🔄 Cloning your bot.....")
+
+    # GitHub se repo clone karo
+    subprocess.run(["git", "clone", GITHUB_REPO, bot_folder], check=True)
+
+    # `.env` file create karo aur details save karo
+    env_content = f"""API_ID=22748653
+API_HASH=29bba513726e776d0b5fd55dfa893c5a
+BOT_TOKEN={new_bot_token}
+OWNER_ID={user_id}
+STRING_SESSION=BQFbHe0AgLJG08--K2ymLyU5rNb89fDVrpDj4Y0ynqEF4BeUUUS3DmDZFmH_JbW596B3mfCUtF6bqu7M1ALkAZnP0dPg160t7WCkYdxqS7jVNEnuOiZgJSTbjNbhQoN8HgRHQK_pt7B42Z802uHWMC7bz0PRZOMHwNu16oDldgZolWueouHhVitQr0zAV9EctiR_PCZJwxXdxZjVgP0MeY3lVJr5XnfUcgKxXAqCx6_HfTUNfiT7xJ3rO2J5sdQSSrnzuJkfM9U2KVOw2pGx30IJqslmBPUHmhCUwSpp86rGP7S8KDFcMjGN-zUYgCVbded0sRzY13p6SAcMwRXN8Wn5EtmS1gAAAAHdyX_DAA
+MONGO_DB_URI=mongodb+srv://Avinash12:Avinash123@cluster0.5y3t1.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+SUPPORT_CHANNEL=https://t.me/Nepsxbot
+SUPPORT_CHAT=https://t.me/Friend_Forever_Groups
+START_IMG_URL=https://files.catbox.moe/rca1m3.jpg
+PING_IMG_URL=https://files.catbox.moe/9cevdg.jpg
+"""
+
+    with open(f"{bot_folder}/.env", "w") as f:
+        f.write(env_content)
+
+    await update.message.reply_text("✅ Repository cloned successfully!")
+
+    # Install dependencies
+    subprocess.run(["pip", "install", "-r", f"{bot_folder}/requirements.txt"], check=True)
+
+    await update.message.reply_text("📦 Dependencies installed!")
+
+    # Bot start karo
+    subprocess.run(["python3", f"{bot_folder}/bot.py"], check=True)
+
+    await update.message.reply_text(f"🎉 Your bot is now live!\n🆔 Owner ID: `{user_id}`")
+
+app.add_handler(CommandHandler("clone", clone))
+
 app.run_polling()
