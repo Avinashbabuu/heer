@@ -66,8 +66,7 @@ def remove_clone(update: Update, context: CallbackContext):
 
 # Telegram bot setup
 TOKEN = "8024398292:AAFHzwE4ICoAba0S7DsSaDk5nykSJHP3sQE"
-updater = Updater(TOKEN, use_context=True)
-dp = updater.dispatcher
+app = Application.builder().token(TOKEN).build()
 
 dp.add_handler(CommandHandler("clone", clone_bot, pass_args=True))
 dp.add_handler(CommandHandler("remove_clone", remove_clone, pass_args=True))
