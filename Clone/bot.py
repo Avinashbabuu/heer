@@ -1,46 +1,76 @@
 import os
-import git
-import telebot
 import subprocess
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, CallbackContext
 
-TOKEN = "8024398292:AAEAWFrPxYcdVoDUEztuObxBr7CH5m5lwgs"  # Apne bot ka token yaha daalo
-bot = telebot.TeleBot(TOKEN)
+# Cloned bots ka data store karne ke liye
+CLONE_DIR = "/root/cloned_bots"  # VPS pe folder
+os.makedirs(CLONE_DIR, exist_ok=True)
 
-# Clone command
-@bot.message_handler(commands=['clone'])
-def clone_bot(message):
-    chat_id = message.chat.id
-    bot.send_message(chat_id, "Send your BotFather bot token to clone your bot.")
+# `/clone` command function
+def clone_bot(update: Update, context: CallbackContext):
+    if len(context.args) != 1:
+        update.message.reply_text("Usage: /clone <bot_token>")
+        return
 
-    @bot.message_handler(func=lambda msg: True)
-    def get_token(msg):
-        user_token = msg.text
-        user_id = msg.from_user.id
-        repo_url = "https://github.com/Avinashbabuu/sara.git"
-        user_folder = f"cloned_bots/bot_{user_id}"
+    bot_token = context.args[0]
 
-        if os.path.exists(user_folder):
-            bot.send_message(chat_id, "Your bot is already cloned!")
-            return
+    # Bot token verify karna
+    bot_info = subprocess.getoutput(f"curl -s https://api.telegram.org/bot{bot_token}/getMe")
+    if '"ok":true' not in bot_info:
+        update.message.reply_text("❌ Invalid bot token! Please check again.")
+        return
 
-        try:
-            bot.send_message(chat_id, "Cloning your bot... Please wait ⏳")
-            git.Repo.clone_from(repo_url, user_folder)
-            
-            # Updating token
-            config_path = os.path.join(user_folder, "config.py")
-            with open(config_path, "w") as config_file:
-                config_file.write(f'BOT_TOKEN = "{user_token}"\n')
+    # Bot username nikalna
+    bot_username = bot_info.split('"username":"')[1].split('"')[0]
 
-            # Installing requirements
-            subprocess.run(["pip", "install", "-r", os.path.join(user_folder, "requirements.txt")])
+    # Clone ka directory
+    bot_path = os.path.join(CLONE_DIR, bot_username)
 
-            # Running bot
-            subprocess.Popen(["python3", os.path.join(user_folder, "bot.py")])
+    if os.path.exists(bot_path):
+        update.message.reply_text("⚠️ This bot is already cloned.")
+        return
 
-            bot.send_message(chat_id, f"✅ Your bot is cloned successfully!\n\n🔗 Username: @{message.chat.username}")
-        
-        except Exception as e:
-            bot.send_message(chat_id, f"❌ Error: {str(e)}")
+    os.makedirs(bot_path)
 
-bot.polling()
+    # Repository clone karna
+    update.message.reply_text(f"🚀 Cloning {bot_username} bot...")
+
+    subprocess.run(f"git clone https://github.com/Avinashbabuu/sara {bot_path}", shell=True)
+
+    # .env file set karna
+    env_content = f"BOT_TOKEN={bot_token}\nDATABASE_URL=sqlite:///{bot_path}/database.db"
+    with open(os.path.join(bot_path, ".env"), "w") as f:
+        f.write(env_content)
+
+    # Start karna cloned bot
+    subprocess.run(f"cd {bot_path} && nohup python3 bot.py &", shell=True)
+
+    update.message.reply_text(f"✅ {bot_username} successfully cloned and running!")
+
+# `/remove_clone` command function
+def remove_clone(update: Update, context: CallbackContext):
+    if len(context.args) != 1:
+        update.message.reply_text("Usage: /remove_clone <bot_username>")
+        return
+
+    bot_username = context.args[0]
+    bot_path = os.path.join(CLONE_DIR, bot_username)
+
+    if not os.path.exists(bot_path):
+        update.message.reply_text("❌ No such cloned bot found.")
+        return
+
+    subprocess.run(f"rm -rf {bot_path}", shell=True)
+    update.message.reply_text(f"🗑️ {bot_username} has been removed.")
+
+# Telegram bot setup
+TOKEN = "8024398292:AAFHzwE4ICoAba0S7DsSaDk5nykSJHP3sQE"
+updater = Updater(TOKEN, use_context=True)
+dp = updater.dispatcher
+
+dp.add_handler(CommandHandler("clone", clone_bot, pass_args=True))
+dp.add_handler(CommandHandler("remove_clone", remove_clone, pass_args=True))
+
+updater.start_polling()
+updater.idle()
