@@ -51,7 +51,7 @@ PING_IMG_URL=https://files.catbox.moe/9cevdg.jpg
     await update.message.reply_text("📦 Dependencies installed!")
 
     # Bot start karo
-    subprocess.run(["python3", f"{bot_folder}/bot.py"], check=True)
+    subprocess.run(["python3", f"{bot_folder}/Clone/bot.py"], check=True)
 
     await update.message.reply_text(f"🎉 Your bot is now live!\n🆔 Owner ID: `{user_id}`")
 
