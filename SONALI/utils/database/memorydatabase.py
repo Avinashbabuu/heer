@@ -3,7 +3,7 @@ import os
 from typing import Dict, List, Union
 
 import config
-from BADMUSIC.core.mongo import mongodb
+from SONALI.core.mongo import mongodb
 
 channeldb = mongodb.cplaymode
 commanddb = mongodb.commands
