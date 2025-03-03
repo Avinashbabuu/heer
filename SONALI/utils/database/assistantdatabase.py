@@ -1,7 +1,7 @@
 import random
 
-from BADMUSIC import userbot
-from BADMUSIC.core.mongo import mongodb
+from SONALI import userbot
+from SONALI.core.mongo import mongodb
 
 db = mongodb.assistants
 
@@ -31,7 +31,7 @@ async def save_assistant(chat_id, number):
 
 
 async def set_assistant(chat_id):
-    from BADMUSIC.core.userbot import assistants
+    from SONALI.core.userbot import assistants
 
     ran_assistant = random.choice(assistants)
     assistantdict[chat_id] = ran_assistant
@@ -45,7 +45,7 @@ async def set_assistant(chat_id):
 
 
 async def get_assistant(chat_id: int) -> str:
-    from BADMUSIC.core.userbot import assistants
+    from SONALI.core.userbot import assistants
 
     assistant = assistantdict.get(chat_id)
     if not assistant:
@@ -72,7 +72,7 @@ async def get_assistant(chat_id: int) -> str:
 
 
 async def set_calls_assistant(chat_id):
-    from BADMUSIC.core.userbot import assistants
+    from SONALI.core.userbot import assistants
 
     ran_assistant = random.choice(assistants)
     assistantdict[chat_id] = ran_assistant
@@ -85,7 +85,7 @@ async def set_calls_assistant(chat_id):
 
 
 async def group_assistant(self, chat_id: int) -> int:
-    from BADMUSIC.core.userbot import assistants
+    from SONALI.core.userbot import assistants
 
     assistant = assistantdict.get(chat_id)
     if not assistant:
